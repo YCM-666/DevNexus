@@ -48,6 +48,7 @@ export interface Article {
   view_count: number;
   like_count: number;
   comment_count: number;
+  bookmark_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -260,6 +261,59 @@ export interface Comment {
   created_at: string;
 }
 
+// 删除评论的函数
+export async function deleteComment(commentId: string): Promise<boolean> {
+  try {
+    // 检查用户是否登录
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('用户未登录，无法删除评论');
+      return false;
+    }
+
+    // 首先获取评论信息，查看评论属于哪篇文章
+    const { data: commentData, error: getCommentError } = await supabase
+      .from('comments')
+      .select('article_id')
+      .eq('id', commentId)
+      .single();
+
+    if (getCommentError) {
+      console.error('获取评论信息失败:', getCommentError);
+      return false;
+    }
+
+    // 然后获取文章信息，检查是否为文章作者
+    const { data: articleData, error: getArticleError } = await supabase
+      .from('articles')
+      .select('author_id')
+      .eq('id', commentData.article_id)
+      .single();
+
+    if (getArticleError) {
+      console.error('获取文章信息失败:', getArticleError);
+      return false;
+    }
+
+    // 删除评论（会触发数据库级别的权限检查，确保只能删除自己的评论或自己文章的评论）
+    const { error } = await supabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId)
+      .or(`user_id.eq.${user.id},article_id.in.(${commentData.article_id})`);
+
+    if (error) {
+      console.error('删除评论失败:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('删除评论时发生错误:', err);
+    return false;
+  }
+}
+
 // 搜索文章的函数
 export async function searchArticles(query: string): Promise<Article[]> {
   if (!query.trim()) {
@@ -284,6 +338,7 @@ export async function searchArticles(query: string): Promise<Article[]> {
         view_count,
         like_count,
         comment_count,
+        bookmark_count,
         created_at,
         updated_at
       `)
@@ -298,7 +353,12 @@ export async function searchArticles(query: string): Promise<Article[]> {
       return [];
     }
 
-    return data || [];
+    // 确保返回的数据中包含bookmark_count字段
+    const articlesWithBookmarkCount = (data || []).map(article => ({
+      ...article,
+      bookmark_count: article.bookmark_count || 0
+    }));
+    return articlesWithBookmarkCount;
   } catch (err) {
     console.error('搜索文章时发生错误:', err);
     return [];
@@ -322,6 +382,7 @@ export const mockSearchArticles = (query: string): Article[] => {
       view_count: 1250,
       like_count: 89,
       comment_count: 23,
+      bookmark_count: 42,
       created_at: '2024-01-15T10:00:00Z',
       updated_at: '2024-01-15T10:00:00Z'
     },
@@ -338,6 +399,7 @@ export const mockSearchArticles = (query: string): Article[] => {
       view_count: 2341,
       like_count: 156,
       comment_count: 42,
+      bookmark_count: 78,
       created_at: '2024-01-10T14:30:00Z',
       updated_at: '2024-01-10T14:30:00Z'
     },
@@ -354,6 +416,7 @@ export const mockSearchArticles = (query: string): Article[] => {
       view_count: 1876,
       like_count: 124,
       comment_count: 35,
+      bookmark_count: 56,
       created_at: '2024-01-08T09:15:00Z',
       updated_at: '2024-01-08T09:15:00Z'
     }

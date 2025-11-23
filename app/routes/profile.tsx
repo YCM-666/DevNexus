@@ -8,8 +8,9 @@ export default function Profile() {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [myArticles, setMyArticles] = useState<Article[]>([]);
+  const [bookmarkedArticles, setBookmarkedArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'popular' | 'recent'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'popular' | 'recent' | 'bookmarks'>('all');
 
   useEffect(() => {
     checkAuth();
@@ -21,12 +22,14 @@ export default function Profile() {
       navigate('/login');
     } else {
       setUser(user);
-      fetchMyArticles(user.id);
+      await Promise.all([
+        fetchMyArticles(user.id),
+        fetchBookmarkedArticles(user.id)
+      ]);
     }
   };
 
   const fetchMyArticles = async (userId: string) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('articles')
@@ -43,6 +46,28 @@ export default function Profile() {
     } catch (err) {
       console.error('Error:', err);
       setMyArticles([]);
+    }
+  };
+
+  const fetchBookmarkedArticles = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('bookmarks')
+        .select('articles(*)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching bookmarked articles:', error);
+        setBookmarkedArticles([]);
+      } else {
+        // 从嵌套结构中提取文章数据
+        const articles = data?.map(bookmark => bookmark.articles).filter(Boolean) || [];
+        setBookmarkedArticles(articles.flat());
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      setBookmarkedArticles([]);
     } finally {
       setLoading(false);
     }
@@ -76,11 +101,13 @@ export default function Profile() {
   const totalLikes = myArticles.reduce((sum, article) => sum + article.like_count, 0);
   const totalComments = myArticles.reduce((sum, article) => sum + article.comment_count, 0);
 
-  const filteredArticles = myArticles.filter(article => {
-    if (activeTab === 'popular') return article.view_count > 100;
-    if (activeTab === 'recent') return new Date(article.created_at).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return true;
-  });
+  const displayArticles = activeTab === 'bookmarks' 
+    ? bookmarkedArticles 
+    : myArticles.filter(article => {
+        if (activeTab === 'popular') return article.view_count > 100;
+        if (activeTab === 'recent') return new Date(article.created_at).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000;
+        return true;
+      });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50 to-red-50">
@@ -306,14 +333,22 @@ export default function Profile() {
                     </button>
                     <button
                       onClick={() => setActiveTab('recent')}
-                      className={`px-6 py-4 font-medium text-sm transition-all relative ${
-                        activeTab === 'recent'
-                          ? 'text-red-500'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
+                      className={`px-6 py-4 font-medium text-sm transition-all relative ${activeTab === 'recent' ? 'text-red-500' : 'text-gray-600 hover:text-gray-900'}`}
                     >
                       最近
                       {activeTab === 'recent' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-orange-500 rounded-t"></div>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('bookmarks')}
+                      className={`px-6 py-4 font-medium text-sm transition-all relative ${activeTab === 'bookmarks' ? 'text-red-500' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                      <div className="flex items-center gap-1">
+                        <Bookmark size={16} />
+                        <span>我的收藏</span>
+                      </div>
+                      {activeTab === 'bookmarks' && (
                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-orange-500 rounded-t"></div>
                       )}
                     </button>
@@ -326,14 +361,29 @@ export default function Profile() {
                     <div className="flex justify-center items-center py-12">
                       <div className="animate-spin rounded-full h-12 w-12 border-4 border-red-500 border-t-transparent"></div>
                     </div>
-                  ) : filteredArticles.length === 0 ? (
+                  ) : displayArticles.length === 0 ? (
                     <div className="text-center py-12">
-                      <BookOpen size={48} className="text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500">暂无文章</p>
+                      {activeTab === 'bookmarks' ? (
+                        <>
+                          <Bookmark size={48} className="text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">暂无收藏的文章</p>
+                          <Link to="/" className="mt-4 inline-block px-6 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition">
+                            去浏览文章
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          <BookOpen size={48} className="text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">暂无文章</p>
+                          <Link to="/write" className="mt-4 inline-block px-6 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition">
+                            写文章
+                          </Link>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {filteredArticles.map((article) => (
+                      {displayArticles.map((article) => (
                         <Link
                           key={article.id}
                           to={`/article/${article.id}`}
@@ -344,9 +394,11 @@ export default function Profile() {
                               <h3 className="flex-1 text-lg font-semibold text-gray-900 group-hover:text-red-500 line-clamp-2 transition-colors">
                                 {article.title}
                               </h3>
-                              <span className="px-3 py-1 bg-red-100 text-red-600 text-xs font-medium rounded-full whitespace-nowrap">
-                                原创
-                              </span>
+                              {activeTab !== 'bookmarks' && (
+                                <span className="px-3 py-1 bg-red-100 text-red-600 text-xs font-medium rounded-full whitespace-nowrap">
+                                  原创
+                                </span>
+                              )}
                             </div>
                             
                             <p className="text-gray-600 text-sm mb-4 line-clamp-2">
@@ -367,6 +419,12 @@ export default function Profile() {
                                   <MessageSquare size={14} />
                                   <span>{article.comment_count}</span>
                                 </div>
+                                {activeTab === 'bookmarks' && (
+                                  <div className="flex items-center gap-1 text-orange-500">
+                                    <Bookmark size={14} className="fill-orange-500" />
+                                    <span>收藏</span>
+                                  </div>
+                                )}
                               </div>
                               <span className="text-xs text-gray-400">
                                 {formatTimeAgo(article.created_at)}

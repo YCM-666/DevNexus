@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router';
-import { Link } from 'react-router';
+import { useParams, Link } from 'react-router';
 import { Eye, ThumbsUp, MessageSquare, Clock, User as UserIcon } from 'lucide-react';
 import Navbar from '~/components/Navbar';
 import Sidebar from '~/components/Sidebar';
@@ -62,6 +61,7 @@ export default function TagArticles() {
           view_count: 1234,
           like_count: 89,
           comment_count: 23,
+          bookmark_count: 45,
           created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -77,6 +77,7 @@ export default function TagArticles() {
           view_count: 3210,
           like_count: 234,
           comment_count: 67,
+          bookmark_count: 120,
           created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }
@@ -95,6 +96,7 @@ export default function TagArticles() {
           view_count: 1234,
           like_count: 89,
           comment_count: 23,
+          bookmark_count: 45,
           created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -110,6 +112,7 @@ export default function TagArticles() {
           view_count: 2456,
           like_count: 156,
           comment_count: 45,
+          bookmark_count: 98,
           created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -125,6 +128,7 @@ export default function TagArticles() {
           view_count: 1890,
           like_count: 123,
           comment_count: 34,
+          bookmark_count: 67,
           created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }
@@ -143,6 +147,7 @@ export default function TagArticles() {
           view_count: 1234,
           like_count: 89,
           comment_count: 23,
+          bookmark_count: 45,
           created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }
@@ -160,6 +165,7 @@ export default function TagArticles() {
           view_count: 2456,
           like_count: 156,
           comment_count: 45,
+          bookmark_count: 98,
           created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }
@@ -177,6 +183,7 @@ export default function TagArticles() {
           view_count: 1890,
           like_count: 123,
           comment_count: 34,
+          bookmark_count: 67,
           created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }
@@ -194,6 +201,7 @@ export default function TagArticles() {
           view_count: 1890,
           like_count: 123,
           comment_count: 34,
+          bookmark_count: 67,
           created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }
@@ -211,6 +219,7 @@ export default function TagArticles() {
           view_count: 3210,
           like_count: 234,
           comment_count: 67,
+          bookmark_count: 120,
           created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }
@@ -228,6 +237,7 @@ export default function TagArticles() {
           view_count: 3210,
           like_count: 234,
           comment_count: 67,
+          bookmark_count: 120,
           created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }
@@ -245,6 +255,7 @@ export default function TagArticles() {
           view_count: 3210,
           like_count: 234,
           comment_count: 67,
+          bookmark_count: 120,
           created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }

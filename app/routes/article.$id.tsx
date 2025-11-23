@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router';
-import { Eye, ThumbsUp, MessageSquare, Clock, User as UserIcon, Share2, Bookmark } from 'lucide-react';
+import { Eye, ThumbsUp, MessageSquare, Clock, User as UserIcon, Share2, Bookmark, Trash2 } from 'lucide-react';
 import Navbar from '~/components/Navbar';
 import Sidebar from '~/components/Sidebar';
-import { supabase, type Article, type Comment } from '~/lib/supabase';
+import { supabase, type Article, type Comment, deleteComment as deleteCommentApi } from '~/lib/supabase';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -15,13 +15,19 @@ export default function ArticleDetail() {
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
+    // 重置点赞和收藏状态，避免状态残留
+    setLiked(false);
+    setBookmarked(false);
+    
     if (id) {
       fetchArticle(id);
       fetchComments(id);
       incrementViewCount(id);
       checkUserInteractions(id);
+      checkCurrentUser();
     }
   }, [id]);
 
@@ -61,19 +67,8 @@ export default function ArticleDetail() {
       } else {
         setComments(data || []);
         
-        // 同步更新文章的评论数（使用实际评论数量）
-        if (article && data) {
-          const actualCommentCount = data.length;
-          if (article.comment_count !== actualCommentCount) {
-            // 更新数据库中的评论数
-            await supabase
-              .from('articles')
-              .update({ comment_count: actualCommentCount })
-              .eq('id', articleId);
-            // 更新本地状态
-            setArticle({ ...article, comment_count: actualCommentCount });
-          }
-        }
+        // 评论数现在由数据库触发器自动管理
+        // 如果需要手动校准，可以调用数据库中的calibrate_comment_counts()函数
       }
     } catch (err) {
       console.error('Error:', err);
@@ -84,7 +79,12 @@ export default function ArticleDetail() {
   const checkUserInteractions = async (articleId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        // 如果用户未登录，明确设置点赞和收藏状态为false
+        setLiked(false);
+        setBookmarked(false);
+        return;
+      }
 
       // 检查是否已点赞 - 修复 406 错误
       const { data: likeData, error: likeError } = await supabase
@@ -94,8 +94,11 @@ export default function ArticleDetail() {
         .eq('user_id', user.id)
         .maybeSingle(); // 使用 maybeSingle 而不是 single
 
-      if (!likeError && likeData) {
-        setLiked(true);
+      if (likeError) {
+        console.error('检查点赞状态错误:', likeError);
+        setLiked(false); // 出错时默认设置为未点赞
+      } else {
+        setLiked(!!likeData); // 明确设置点赞状态，无论是否找到记录
       }
 
       // 检查是否已收藏 - 修复 406 错误
@@ -106,12 +109,17 @@ export default function ArticleDetail() {
         .eq('user_id', user.id)
         .maybeSingle(); // 使用 maybeSingle 而不是 single
 
-      if (!bookmarkError && bookmarkData) {
-        setBookmarked(true);
+      if (bookmarkError) {
+        console.error('检查收藏状态错误:', bookmarkError);
+        setBookmarked(false); // 出错时默认设置为未收藏
+      } else {
+        setBookmarked(!!bookmarkData); // 明确设置收藏状态，无论是否找到记录
       }
     } catch (err) {
-      // 静默失败，不影响使用
+      // 静默失败，但仍明确设置状态
       console.log('检查用户交互状态:', err);
+      setLiked(false);
+      setBookmarked(false);
     }
   };
 
@@ -146,6 +154,11 @@ export default function ArticleDetail() {
         return;
       }
 
+      // 点赞操作前先存储当前状态，用于错误处理
+      const previousLikedState = liked;
+
+      // 执行数据库操作
+      let error = null;
       if (!liked) {
         // 点赞
         const { error: likeError } = await supabase
@@ -154,26 +167,7 @@ export default function ArticleDetail() {
             article_id: id,
             user_id: user.id,
           }]);
-
-        if (likeError) {
-          if (likeError.code === '23505') {
-            alert('您已经点赞过了');
-          } else {
-            console.error('点赞错误:', likeError);
-          }
-          return;
-        }
-
-        // 更新文章点赞数
-        const { error: updateError } = await supabase
-          .from('articles')
-          .update({ like_count: article.like_count + 1 })
-          .eq('id', id);
-
-        if (!updateError) {
-          setArticle({ ...article, like_count: article.like_count + 1 });
-          setLiked(true);
-        }
+        error = likeError;
       } else {
         // 取消点赞
         const { error: unlikeError } = await supabase
@@ -181,26 +175,46 @@ export default function ArticleDetail() {
           .delete()
           .eq('article_id', id)
           .eq('user_id', user.id);
+        error = unlikeError;
+      }
 
-        if (unlikeError) {
-          console.error('取消点赞错误:', unlikeError);
-          return;
+      if (error) {
+        console.error(previousLikedState ? '取消点赞失败:' : '添加点赞失败:', error);
+        // 操作失败，不更新UI状态
+        if (error.code === '23505') {
+          alert('您已经点赞过了');
+        } else {
+          alert(previousLikedState ? '取消点赞失败，请重试' : '添加点赞失败，请重试');
         }
+        return;
+      }
 
-        // 更新文章点赞数
-        const { error: updateError } = await supabase
-          .from('articles')
-          .update({ like_count: Math.max(0, article.like_count - 1) })
-          .eq('id', id);
-
-        if (!updateError) {
-          setArticle({ ...article, like_count: Math.max(0, article.like_count - 1) });
-          setLiked(false);
-        }
+      // 操作成功，更新点赞状态
+      setLiked(!previousLikedState);
+      
+      // 依赖数据库触发器自动更新计数，重新获取文章最新数据
+      const { data } = await supabase
+        .from('articles')
+        .select('like_count')
+        .eq('id', id)
+        .single();
+      if (data && article) {
+        setArticle({ ...article, like_count: data.like_count || 0 });
       }
     } catch (err: any) {
       console.error('点赞异常:', err);
       alert('操作失败：' + (err.message || '请稍后重试'));
+      // 捕获到任何异常，重新获取最新状态以确保一致性
+      await checkUserInteractions(id);
+      // 重新获取文章以更新点赞计数
+      const { data } = await supabase
+        .from('articles')
+        .select('like_count')
+        .eq('id', id)
+        .single();
+      if (data && article) {
+        setArticle({ ...article, like_count: data.like_count || 0 });
+      }
     }
   };
 
@@ -215,45 +229,112 @@ export default function ArticleDetail() {
         return;
       }
 
+      // 操作前先存储当前状态，用于错误处理
+      const previousBookmarkedState = bookmarked;
+
+      // 执行数据库操作
+      let error = null;
       if (!bookmarked) {
         // 收藏
-        const { error } = await supabase
+        const { error: bookmarkError } = await supabase
           .from('bookmarks')
           .insert([{
             article_id: id,
             user_id: user.id,
           }]);
-
-        if (error) {
-          if (error.code === '23505') {
-            alert('您已经收藏过了');
-          } else {
-            console.error('收藏错误:', error);
-            alert('收藏失败：' + error.message);
-          }
-        } else {
-          setBookmarked(true);
-          alert('收藏成功');
-        }
+        error = bookmarkError;
       } else {
         // 取消收藏
-        const { error } = await supabase
+        const { error: unbookmarkError } = await supabase
           .from('bookmarks')
           .delete()
           .eq('article_id', id)
           .eq('user_id', user.id);
+        error = unbookmarkError;
+      }
 
-        if (error) {
-          console.error('取消收藏错误:', error);
-          alert('操作失败：' + error.message);
+      if (error) {
+        console.error(previousBookmarkedState ? '取消收藏失败:' : '添加收藏失败:', error);
+        // 操作失败，不更新UI状态
+        if (error.code === '23505') {
+          alert('您已经收藏过了');
         } else {
-          setBookmarked(false);
-          alert('已取消收藏');
+          alert(previousBookmarkedState ? '取消收藏失败，请重试' : '添加收藏失败，请重试');
         }
+        return;
+      }
+
+      // 操作成功，更新收藏状态
+      setBookmarked(!previousBookmarkedState);
+      
+      // 依赖数据库触发器自动更新计数，重新获取文章最新数据
+      const { data } = await supabase
+        .from('articles')
+        .select('bookmark_count')
+        .eq('id', id)
+        .single();
+      if (data && article) {
+        setArticle({ ...article, bookmark_count: data.bookmark_count || 0 });
       }
     } catch (err: any) {
       console.error('收藏异常:', err);
       alert('操作失败：' + (err.message || '请稍后重试'));
+      // 捕获到任何异常，重新获取最新状态以确保一致性
+      await checkUserInteractions(id);
+      // 重新获取文章以更新收藏计数
+      const { data } = await supabase
+        .from('articles')
+        .select('bookmark_count')
+        .eq('id', id)
+        .single();
+      if (data && article) {
+        setArticle({ ...article, bookmark_count: data.bookmark_count || 0 });
+      }
+    }
+  };
+
+  const checkCurrentUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('获取用户信息失败:', error);
+      setCurrentUser(null);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    // 显示确认对话框
+    if (!confirm('确定要删除这条评论吗？')) {
+      return;
+    }
+
+    try {
+      // 调用删除评论API
+      const success = await deleteCommentApi(commentId);
+      
+      if (success) {
+        // 更新本地评论列表，移除被删除的评论
+        setComments(comments.filter(comment => comment.id !== commentId));
+        
+        // 评论数现在由数据库触发器自动更新
+        // 重新获取文章以更新评论计数
+        if (article) {
+          const { data } = await supabase
+            .from('articles')
+            .select('comment_count')
+            .eq('id', article.id)
+            .single();
+          if (data) {
+            setArticle({ ...article, comment_count: data.comment_count });
+          }
+        }
+      } else {
+        alert('删除评论失败，请稍后重试');
+      }
+    } catch (error) {
+      console.error('删除评论时发生错误:', error);
+      alert('删除评论失败：' + (error as Error).message || '请稍后重试');
     }
   };
 
@@ -294,13 +375,17 @@ export default function ArticleDetail() {
         setComments([data, ...comments]);
         setNewComment('');
         
-        // 更新文章评论数
+        // 评论数现在由数据库触发器自动更新
+        // 重新获取文章以更新评论计数
         if (article) {
-          await supabase
+          const { data } = await supabase
             .from('articles')
-            .update({ comment_count: article.comment_count + 1 })
-            .eq('id', id);
-          setArticle({ ...article, comment_count: article.comment_count + 1 });
+            .select('comment_count')
+            .eq('id', id)
+            .single();
+          if (data) {
+            setArticle({ ...article, comment_count: data.comment_count });
+          }
         }
       }
     } catch (err: any) {
@@ -369,6 +454,7 @@ React 19 是一个非常值得升级的版本，它带来了许多实用的新�
       view_count: 1234,
       like_count: 89,
       comment_count: 23,
+      bookmark_count: 45,
       created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -580,10 +666,22 @@ React 19 是一个非常值得升级的版本，它带来了许多实用的新�
                       </div>
                     )}
                     <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="font-semibold text-gray-900">{comment.username}</span>
-                        <span className="text-sm text-gray-500">{formatTimeAgo(comment.created_at)}</span>
-                      </div>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-semibold text-gray-900">{comment.username}</span>
+                            <span className="text-sm text-gray-500">{formatTimeAgo(comment.created_at)}</span>
+                          </div>
+                          {/* 对评论作者和文章作者显示删除按钮 */}
+                          {currentUser && (comment.user_id === currentUser.id || article.author_id === currentUser.id) && (
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="text-gray-400 hover:text-red-500 transition-colors"
+                              aria-label="删除评论"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
+                        </div>
                       <p className="text-gray-700">{comment.content}</p>
                     </div>
                   </div>
