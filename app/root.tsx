@@ -25,10 +25,12 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="zh-CN">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>DevNexus - 开发者技术社区</title>
+        <meta name="description" content="DevNexus - 专为开发者打造的技术博客社区" />
         <Meta />
         <Links />
       </head>
