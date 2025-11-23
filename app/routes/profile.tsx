@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { User as UserIcon, Settings, Edit, BookOpen, Eye, ThumbsUp, MessageSquare, Bookmark, Award, TrendingUp, Calendar, Mail, MapPin, Code, Star, Zap } from 'lucide-react';
+import { User as UserIcon, Settings, Edit, BookOpen, Eye, ThumbsUp, MessageSquare, Bookmark, Award, TrendingUp, Calendar, Mail, MapPin, Code, Star, Zap, Trash2 } from 'lucide-react';
 import Navbar from '~/components/Navbar';
 import { supabase, type Article } from '~/lib/supabase';
 
@@ -91,6 +91,30 @@ export default function Profile() {
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}小时前`;
     if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}天前`;
     return formatDate(dateString);
+  };
+
+  const handleDeleteArticle = async (articleId: string) => {
+    if (!user) return;
+    
+    if (window.confirm('确定要删除这篇文章吗？此操作无法撤销。')) {
+      setLoading(true);
+      try {
+        // 直接调用Supabase API删除文章
+        const { error } = await supabase.from('articles').delete().eq('id', articleId).eq('author_id', user.id);
+        
+        if (!error) {
+          // 刷新文章列表
+          await fetchMyArticles(user.id);
+        } else {
+          alert('删除失败: ' + error.message);
+        }
+      } catch (err) {
+        alert('删除文章时发生错误');
+        console.error('删除文章失败:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   if (!user) {
@@ -426,6 +450,19 @@ export default function Profile() {
                                   </div>
                                 )}
                               </div>
+                              {activeTab !== 'bookmarks' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteArticle(article.id);
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors"
+                                  title="删除文章"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
                               <span className="text-xs text-gray-400">
                                 {formatTimeAgo(article.created_at)}
                               </span>

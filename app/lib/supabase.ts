@@ -365,6 +365,38 @@ export async function searchArticles(query: string): Promise<Article[]> {
   }
 }
 
+// 删除文章的函数
+export async function deleteArticle(articleId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 检查用户是否登录
+    const { data: { user }, error: getUserError } = await supabase.auth.getUser();
+    if (getUserError || !user) {
+      console.error('用户未登录，无法删除文章');
+      return { success: false, error: '用户未登录' };
+    }
+
+    // 删除文章（数据库级别的RLS策略会确保只能删除自己的文章）
+    const { error } = await supabase
+      .from('articles')
+      .delete()
+      .eq('id', articleId);
+
+    if (error) {
+      console.error('删除文章失败:', error);
+      // 403错误通常是权限问题
+      if (error.code === '42501' || error.code === '403') {
+        return { success: false, error: '没有权限删除这篇文章' };
+      }
+      return { success: false, error: '删除文章失败' };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('删除文章时发生错误:', err);
+    return { success: false, error: err instanceof Error ? err.message : '删除失败' };
+  }
+}
+
 // 模拟搜索数据，用于开发和测试
 export const mockSearchArticles = (query: string): Article[] => {
   // 模拟文章数据
