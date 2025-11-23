@@ -73,8 +73,6 @@ export interface NotificationSettings {
 
 // 隐私设置接口
 export interface PrivacySettings {
-  showEmail: boolean;
-  showLocation: boolean;
   allowComments: boolean;
   allowLikes: boolean;
 }

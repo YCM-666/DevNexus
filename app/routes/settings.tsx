@@ -27,8 +27,6 @@ export default function Settings() {
   
   // 隐私设置状态
   const [privacySettings, setPrivacySettings] = useState({
-    showEmail: true,
-    showLocation: true,
     allowComments: true,
     allowLikes: true
   });
@@ -70,9 +68,12 @@ export default function Settings() {
         
         // 加载隐私设置
         if (userMetadata.privacySettings) {
+          // 只保留有效的隐私设置属性
+          const { allowComments, allowLikes } = userMetadata.privacySettings;
           setPrivacySettings(prev => ({
             ...prev,
-            ...userMetadata.privacySettings
+            allowComments: allowComments !== undefined ? allowComments : prev.allowComments,
+            allowLikes: allowLikes !== undefined ? allowLikes : prev.allowLikes
           }));
         }
       }
@@ -509,47 +510,7 @@ export default function Settings() {
               {activeTab === 'privacy' && (
                 <div>
                   <div className="space-y-4 mb-6">
-                    <div className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                          <Shield className="h-5 w-5 text-purple-500" />
-                        </div>
-                        <div>
-                          <h3 className="font-medium text-gray-900">显示邮箱</h3>
-                          <p className="text-sm text-gray-500">在你的个人资料中显示邮箱地址</p>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={privacySettings.showEmail}
-                          onChange={(e) => handleCheckboxChange('privacy', 'showEmail', e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-purple-600"></div>
-                      </label>
-                    </div>
 
-                    <div className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                          <Shield className="h-5 w-5 text-yellow-500" />
-                        </div>
-                        <div>
-                          <h3 className="font-medium text-gray-900">显示位置</h3>
-                          <p className="text-sm text-gray-500">在你的个人资料中显示所在地信息</p>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={privacySettings.showLocation}
-                          onChange={(e) => handleCheckboxChange('privacy', 'showLocation', e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-yellow-500 peer-checked:to-yellow-600"></div>
-                      </label>
-                    </div>
 
                     <div className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
                       <div className="flex items-center gap-3">
